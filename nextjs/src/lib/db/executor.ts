@@ -3,6 +3,7 @@ import { SQLResult } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 import fs from "fs/promises";
 import path from "path";
+import { createExecutionError, createSyntaxError } from "@/lib/error-utils";
 
 // データベースファイルのパス
 const DB_TEMPLATE_PATH = path.join(process.cwd(), "data", "chinook.db");
@@ -28,10 +29,11 @@ class DbHelper {
 
       this.db = new Database(this.dbPath);
     } catch (error) {
-      throw new Error(
+      throw createExecutionError(
         `DB接続エラー: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
+        "データベース接続の初期化中にエラーが発生しました"
       );
     }
   }
@@ -59,20 +61,50 @@ class DbHelper {
   // SQLクエリを実行
   executeQuery<T = any>(query: string): T[] {
     if (!this.db) {
-      throw new Error("データベース接続がありません");
+      throw createExecutionError(
+        "データベース接続がありません",
+        "データベース接続がクローズされています"
+      );
     }
 
-    const stmt = this.db.prepare(query);
-    return stmt.all() as T[];
+    try {
+      const stmt = this.db.prepare(query);
+      return stmt.all() as T[];
+    } catch (error) {
+      // エラーメッセージを分析して適切なエラータイプを返す
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      if (errorMessage.toLowerCase().includes("syntax error")) {
+        throw createSyntaxError(errorMessage, query);
+      }
+
+      throw createExecutionError(errorMessage, query);
+    }
   }
 
   // SQLコマンドを実行（更新系）
   executeCommand(command: string): void {
     if (!this.db) {
-      throw new Error("データベース接続がありません");
+      throw createExecutionError(
+        "データベース接続がありません",
+        "データベース接続がクローズされています"
+      );
     }
 
-    this.db.exec(command);
+    try {
+      this.db.exec(command);
+    } catch (error) {
+      // エラーメッセージを分析して適切なエラータイプを返す
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      if (errorMessage.toLowerCase().includes("syntax error")) {
+        throw createSyntaxError(errorMessage, command);
+      }
+
+      throw createExecutionError(errorMessage, command);
+    }
   }
 }
 

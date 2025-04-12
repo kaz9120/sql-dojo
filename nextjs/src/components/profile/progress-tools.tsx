@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Download, Upload, RotateCcw, ArrowRight } from "lucide-react";
+import { Download, Upload, RotateCcw } from "lucide-react";
 import { useProblemStatus } from "@/hooks/useProblemStatus";
 import {
   Dialog,

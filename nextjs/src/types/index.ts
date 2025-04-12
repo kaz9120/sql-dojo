@@ -19,6 +19,21 @@ export type SQLResult = {
   expectedData?: any[];
 };
 
+// SQL実行関連のエラータイプ
+export enum SqlErrorType {
+  SYNTAX_ERROR = "syntax_error",
+  EXECUTION_ERROR = "execution_error",
+  NETWORK_ERROR = "network_error",
+  AUTH_ERROR = "auth_error",
+  UNKNOWN_ERROR = "unknown_error",
+}
+
+// SQLエラーの拡張型
+export interface SqlError extends Error {
+  type: SqlErrorType;
+  details?: string;
+}
+
 // 問題の解答状況を表す型
 export type ProblemStatus = {
   problemId: string;
@@ -29,6 +44,21 @@ export type ProblemStatus = {
 // ユーザーの進捗状況を表す型
 export type UserProgress = {
   [problemId: string]: ProblemStatus;
+};
+
+// 難易度ごとの進捗状況
+export type DifficultyProgress = {
+  total: number;
+  solved: number;
+  correct: number;
+  percentage: number;
+};
+
+// 総合進捗状況
+export type OverallProgress = {
+  [key in ProblemDifficulty]?: DifficultyProgress;
+} & {
+  total: DifficultyProgress;
 };
 
 // テーブル情報型（ER図表示用）

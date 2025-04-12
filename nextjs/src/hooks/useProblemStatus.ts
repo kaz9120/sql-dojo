@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { UserProgress, ProblemStatus } from "@/types";
 import { toast } from "sonner";
+import { storage } from "@/lib/storage";
 
 const STORAGE_KEY = "sql_dojo_user_progress";
 
@@ -14,11 +15,8 @@ export function useProblemStatus() {
   useEffect(() => {
     const loadProgress = () => {
       try {
-        const savedProgress = localStorage.getItem(STORAGE_KEY);
-        if (savedProgress) {
-          const parsed = JSON.parse(savedProgress);
-          setUserProgress(parsed);
-        }
+        const savedProgress = storage.get<UserProgress>(STORAGE_KEY, {});
+        setUserProgress(savedProgress || {});
       } catch (error) {
         console.error("進捗データの読み込みエラー:", error);
         toast.error("進捗データの読み込みに失敗しました");
@@ -67,12 +65,7 @@ export function useProblemStatus() {
         };
 
         // ローカルストレージに保存
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProgress));
-        } catch (error) {
-          console.error("進捗データの保存エラー:", error);
-          toast.error("進捗データの保存に失敗しました");
-        }
+        storage.set(STORAGE_KEY, updatedProgress);
 
         return updatedProgress;
       });
@@ -93,14 +86,12 @@ export function useProblemStatus() {
 
   // 難易度別の進捗状況を取得
   const getProgressByDifficulty = useCallback(
-    (difficulty: string) => {
-      // difficultyは 'basic' | 'advanced' | 'extreme' が想定される
-      // 別途問題一覧を取得してフィルタリングする必要がある
-      // ここでは簡易的に全問題数を使用
+    (difficulty: string, totalProblems: number) => {
+      // difficultyに基づいて特定の難易度の問題を集計
       return {
-        total: 0, // ここは後で実際の問題数に置き換え
-        solved: 0,
-        correct: 0,
+        total: totalProblems,
+        solved: 0, // この値は別途計算が必要
+        correct: 0, // この値は別途計算が必要
       };
     },
     [userProgress]
@@ -108,79 +99,58 @@ export function useProblemStatus() {
 
   // 進捗データをエクスポート
   const exportProgress = useCallback(() => {
-    try {
-      const progressData = JSON.stringify(userProgress);
-      const blob = new Blob([progressData], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `sql_dojo_progress_${new Date()
-        .toISOString()
-        .slice(0, 10)}.json`;
-      a.click();
-
-      URL.revokeObjectURL(url);
-
-      toast.success("進捗データをエクスポートしました");
-    } catch (error) {
-      console.error("進捗データのエクスポートエラー:", error);
-      toast.error("進捗データのエクスポートに失敗しました");
-    }
-  }, [userProgress]);
+    storage.exportToFile<UserProgress>(
+      STORAGE_KEY,
+      `sql_dojo_progress_${new Date().toISOString().slice(0, 10)}.json`
+    );
+  }, []);
 
   // 進捗データをインポート
   const importProgress = useCallback((jsonString: string) => {
-    try {
-      const importedData = JSON.parse(jsonString) as UserProgress;
-
-      // データの検証（簡易的な検証）
-      const isValid = Object.values(importedData).every(
-        (item) =>
-          typeof item === "object" && "problemId" in item && "isCorrect" in item
+    // 簡易的な検証関数
+    const isValidUserProgress = (data: any): data is UserProgress => {
+      return (
+        typeof data === "object" &&
+        Object.values(data).every(
+          (item: any) =>
+            typeof item === "object" &&
+            "problemId" in item &&
+            "isCorrect" in item
+        )
       );
+    };
 
-      if (!isValid) {
-        throw new Error("無効なデータ形式です");
+    const importedData = storage.importFromJson<UserProgress>(
+      jsonString,
+      isValidUserProgress
+    );
+
+    if (!importedData) return;
+
+    // 現在の進捗とマージ（既存の正解は保持）
+    setUserProgress((prevProgress) => {
+      const mergedProgress = { ...prevProgress };
+
+      // インポートデータを反映（既存の正解は上書きしない）
+      for (const [id, status] of Object.entries(importedData)) {
+        if (!mergedProgress[id] || !mergedProgress[id].isCorrect) {
+          mergedProgress[id] = status;
+        }
       }
 
-      // 現在の進捗とマージ（既存の正解は保持）
-      setUserProgress((prevProgress) => {
-        const mergedProgress = { ...prevProgress };
-
-        // インポートデータを反映（既存の正解は上書きしない）
-        for (const [id, status] of Object.entries(importedData)) {
-          if (!mergedProgress[id] || !mergedProgress[id].isCorrect) {
-            mergedProgress[id] = status;
-          }
-        }
-
-        // ローカルストレージに保存
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedProgress));
-
-        return mergedProgress;
-      });
+      // ローカルストレージに保存
+      storage.set(STORAGE_KEY, mergedProgress);
 
       toast.success("進捗データをインポートしました");
-    } catch (error) {
-      console.error("進捗データのインポートエラー:", error);
-      toast.error(
-        "進捗データのインポートに失敗しました: " +
-          (error instanceof Error ? error.message : "不明なエラー")
-      );
-    }
+      return mergedProgress;
+    });
   }, []);
 
   // 進捗データをリセット
   const resetProgress = useCallback(() => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-      setUserProgress({});
-      toast.success("進捗データをリセットしました");
-    } catch (error) {
-      console.error("進捗データのリセットエラー:", error);
-      toast.error("進捗データのリセットに失敗しました");
-    }
+    storage.remove(STORAGE_KEY);
+    setUserProgress({});
+    toast.success("進捗データをリセットしました");
   }, []);
 
   return {

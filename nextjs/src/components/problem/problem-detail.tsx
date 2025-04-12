@@ -9,7 +9,16 @@ import { ResultViewer } from '@/components/sql/result-viewer';
 import { Badge } from '@/components/ui/badge';
 import { ErDiagram } from '@/components/problem/er-diagram';
 import { useProblemStatus } from '@/hooks/useProblemStatus';
+import { useSqlExecution } from '@/hooks/useSqlExecution';
 import { BookOpen, Lightbulb, Award } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table';
 
 interface ProblemDetailProps {
   problem: Problem;
@@ -18,38 +27,30 @@ interface ProblemDetailProps {
 export function ProblemDetail({ problem }: ProblemDetailProps) {
   const [result, setResult] = useState<SQLResult | undefined>();
   const [expectedResult, setExpectedResult] = useState<any[] | null>(null);
-  const [isLoadingExpected, setIsLoadingExpected] = useState(false);
   const { updateProblemStatus } = useProblemStatus();
+
+  // SQL実行フックを使用
+  const { getExpectedResult, isExecuting } = useSqlExecution();
 
   // 期待される結果をロード
   useEffect(() => {
+    let isMounted = true;
+
     async function loadExpectedResult() {
       if (!problem.exampleAnswer) return;
 
-      setIsLoadingExpected(true);
-      try {
-        const response = await fetch('/api/sql', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            query: problem.exampleAnswer,
-          }),
-        });
-
-        const data = await response.json();
-        if (data.success && data.data) {
-          setExpectedResult(data.data);
-        }
-      } catch (error) {
-        console.error('期待結果の取得エラー:', error);
-      } finally {
-        setIsLoadingExpected(false);
+      const data = await getExpectedResult(problem.exampleAnswer);
+      if (isMounted) {
+        setExpectedResult(data);
       }
     }
 
     loadExpectedResult();
+
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem.exampleAnswer]);
 
   const handleResult = (newResult: SQLResult) => {
@@ -122,7 +123,7 @@ export function ProblemDetail({ problem }: ProblemDetailProps) {
                   以下のようなデータが返ることを期待しています。
                 </p>
 
-                {isLoadingExpected ? (
+                {isExecuting ? (
                   <div className="text-center py-8">
                     <p className="text-muted-foreground">読み込み中...</p>
                   </div>
@@ -173,13 +174,3 @@ export function ProblemDetail({ problem }: ProblemDetailProps) {
     </div>
   );
 }
-
-// インポートが必要なコンポーネント
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table';
