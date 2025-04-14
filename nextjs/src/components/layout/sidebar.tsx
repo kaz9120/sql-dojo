@@ -53,7 +53,7 @@ export function AppSidebar({ currentProblemId }: AppSidebarProps) {
 
             return (
               <SidebarMenuItem key={problem.id}>
-                <Link href={`/problem/${problem.id}`} passHref legacyBehavior>
+                <Link href={`/problem/${problem.id}`} passHref>
                   <SidebarMenuButton
                     isActive={currentProblemId === problem.id}
                     tooltip={problem.title}
@@ -75,7 +75,7 @@ export function AppSidebar({ currentProblemId }: AppSidebarProps) {
       <SidebarContent className="py-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <Link href="/dashboard" passHref legacyBehavior>
+            <Link href="/dashboard" passHref>
               <SidebarMenuButton isActive={!currentProblemId} tooltip="ダッシュボード">
                 <HomeIcon className="h-4 w-4" />
                 <span>ダッシュボード</span>
